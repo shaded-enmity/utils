@@ -1,0 +1,44 @@
+#!/usr/bin/python3
+
+from subprocess import run
+from re import compile as regexp
+from argparse import ArgumentParser
+from functools import partial
+import sys
+
+
+def _compress_tar(kind=None, to_compress=None, destination=None):
+    flags = 'cvf' + kind
+    run(['tar', flags, destination, *to_compress])
+
+
+def _compress_zip(to_compress=None, destination=None):
+    run(['zip', '--recurse-paths', destination, *to_compress])
+
+
+destinations = [
+    (regexp('\.tar\.gz$'), partial(_compress_tar, kind='z')),
+    (regexp('\.tar\.bz2$'), partial(_compress_tar, kind='j')),
+    (regexp('\.tar$'), partial(_compress_tar, kind='')),
+    (regexp('\.zip$'), _compress_zip),
+]
+
+
+def main():
+    arguments = ArgumentParser()
+    arguments.add_argument('files', nargs='+')
+    parsed = arguments.parse_args()
+
+    files = parsed.files
+    to_compress = files[:-1]
+    destination = files[-1]
+
+    for (pattern, func) in destinations:
+        if pattern.search(destination):
+            func(to_compress=to_compress, destination=destination)
+            return
+
+    print('No compressor found for destination {}'.format(destination), file=sys.stderr)
+    sys.exit(1)
+
+main()

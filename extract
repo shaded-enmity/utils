@@ -1,0 +1,58 @@
+#!/usr/bin/python3
+
+from subprocess import run
+from re import compile as regexp
+from argparse import ArgumentParser
+import sys
+
+
+def identify_file_type(file_path):
+    result = run(
+        ('file', '--brief', file_path,),
+        capture_output=True,
+        encoding='utf-8'
+    )
+    return result.stdout
+
+
+def _extract_tar(target_directory, archive_path):
+    command = ['tar', 'xvf', archive_path]
+    if target_directory:
+        command += ['-C', target_directory]
+    run(command)
+
+
+def _extract_zip(target_directory, archive_path):
+    command = ['unzip']
+    if target_directory:
+        command += ['-d', target_directory]
+    command += [archive_path]
+    run(command)
+
+
+extractors = [
+    (regexp('^bzip2 compressed data'), _extract_tar),
+    (regexp('^gzip compressed data'), _extract_tar),
+    (regexp('tar archive'), _extract_tar),
+    (regexp('^Zip archive data'), _extract_zip),
+]
+
+
+def main():
+    arguments = ArgumentParser()
+    arguments.add_argument('archive')
+    arguments.add_argument('destination', nargs='?')
+    parsed = arguments.parse_args()
+
+    archive, destination = parsed.archive, parsed.destination
+    archive_type = identify_file_type(archive)
+
+    for (type_matcher, extract_func) in extractors:
+        if type_matcher.match(archive_type):
+            extract_func(destination, archive)
+            return
+
+    print('No extractor found for destination {}'.format(destination), file=sys.stderr)
+    sys.exit(1)
+
+main()
